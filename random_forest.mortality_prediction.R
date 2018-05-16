@@ -27,30 +27,30 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "no" ## Say yes if the data is unbalanced
+resampling <- "yes" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 
 data.dir <- "/home/pablo/genetica/NeuralNetNeumo/data/"
 results.dir <- "/home/pablo/genetica/NeuralNetNeumo/results/"
-variables.to.remove <- c(8) ## Position of variables to remove from the analysis
+variables.to.remove <- c(2,4,6,8,9,12) ## Position of variables to remove from the analysis
 
 ## Name of files
-input.file <- "data_curated_sorted.moredata.txt"
-input.knn.matrix.file <- "input.knn.matrix.moredata.txt"
-roc.curve.file <- "rf_curvasroc.all.png"
+input.file <- "repucri16052018_filtro_sorted.txt"
+input.knn.matrix.file <- "input.knn.matrix.repucri16052018.txt"
+roc.curve.file <- "rf_curvasroc.repucri16052018.png"
 
 setwd(data.dir)
 
 ## First we input missing data using KNN
 input.matrix <- read.table(input.file, sep="\t", header=T, na.strings = "NULL", 
-                                        stringsAsFactors = F, colClasses = "numeric")
+                                        stringsAsFactors = F, colClasses = "numeric")[,-variables.to.remove] 
 
 ## Sort according to MORTALITY (1s first) ## In case dinput.natrix is not sorted (1s in the first columns and 0s in the last ones)
 #input.matrix <- input.matrix[order(input.matrix$MORTALITY, decreasing = TRUE),]
 
 ## Impute values on NAs using KNN  and remove any variable in vector variables.to.remove
 ## Should do a study of % of missing values per each paramenter)
-input.knn.matrix <- knnImputation(as.matrix(input.matrix), k=10)[,-variables.to.remove] 
+input.knn.matrix <- knnImputation(as.matrix(input.matrix), k=3)
 
 ## Write matrices KNN
 write.table(input.knn.matrix, file=input.knn.matrix.file,sep="\t", quote=F)
@@ -64,15 +64,6 @@ sensitivity.global.vector <- rep(NA, k)
 specificity.global.vector <- rep(NA, k)
 
 ## This is to build the ROC curve after the 10 fold cross-validation
-## 70 is the number of rows of cv.test * 10
-## an aproximation would be 
-## in the case resampling = no
-#matrix.frame.test <- read.table(matrix.file, sep="\t", header=T)
-#size.of.vector <- round(dim(matrix.frame.test)[1]*0.1)
-#size.of.vector <- 7
-
-#classes.global.vector <- rep(NA, size.of.vector*k)
-#probabilities.global.vector <- rep(NA, size.of.vector*k)
 classes.global.vector <- vector(mode="logical")
 probabilities.global.vector <- vector(mode="logical")
 
@@ -100,22 +91,28 @@ for(i in 1:k){
   cv.test <- matrix.frame[-samp, ]
   
   ## This in principle avoids that we have all classes in the cv.test data.frame
-  while(length(unique(cv.test$MORTALITY)) != length(unique(matrix.frame$MORTALITY))){
+  recalculate.sets <- any(c(any(is.na(cv.test)), any(is.na(cv.train)))==TRUE)
+  while(recalculate.sets == TRUE){
     
-    matrix.frame <- read.table(matrix.file, sep="\t", header=T)
-    set.seed(i + seed.sum + lucky.number)
+      matrix.frame <- read.table(matrix.file, sep="\t", header=T)
+      set.seed(i + seed.sum + lucky.number)
     
-    if(resampling=="yes"){
-      number.to.keep <- sum(matrix.frame$MORTALITY==1)
-      rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
-      matrix.frame <- matrix.frame[rows,]
-      rownames(matrix.frame) <- 1:dim(matrix.frame)[1]
-    }
+      if(resampling=="yes"){
+        number.to.keep <- sum(matrix.frame$MORTALITY==1)
+        rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
+        matrix.frame <- matrix.frame[rows,]
+        rownames(matrix.frame) <- 1:dim(matrix.frame)[1]
+      }
     
-    samp <- sample(nrow(matrix.frame), 0.9 * nrow(matrix.frame))
-    cv.train <- matrix.frame[samp, ]
-    cv.test <- matrix.frame[-samp, ]
-    lucky.number <- lucky.number + 1
+      samp <- sample(nrow(matrix.frame), 0.9 * nrow(matrix.frame))
+      cv.train <- matrix.frame[samp, ]
+      cv.test <- matrix.frame[-samp, ]
+      lucky.number <- lucky.number + 1
+    
+      recalculate.sets <- any(c(any(is.na(cv.test)), any(is.na(cv.train)))==TRUE)
+      if(length(unique(cv.test$MORTALITY)) != length(unique(matrix.frame$MORTALITY))){
+        recalculate.sets <- TRUE
+      }
   }
   
   ## Convert response variable to factor (MORTALITY) to avoid RF does regression
