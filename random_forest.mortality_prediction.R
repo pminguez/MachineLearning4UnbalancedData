@@ -18,7 +18,7 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "yes"
+resampling <- "yes" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 
 data.dir <- "/home/pablo/genetica/NeuralNetNeumo/data/"
