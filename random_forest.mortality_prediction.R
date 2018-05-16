@@ -9,6 +9,15 @@
 
 rm(list=ls())
 
+## Installing libraries
+## install.packages("randomForest")
+## install.packages("rfUtilities")
+## install.packages("pROC")
+## install.packages("HandTill2001")
+## install.packages("ggplot2")
+## install.packages("irlba")
+## install.packages("DMwR")
+
 library(randomForest)
 library(rfUtilities)
 library(pROC)
@@ -18,7 +27,7 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "yes" ## Say yes if the data is unbalanced
+resampling <- "no" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 
 data.dir <- "/home/pablo/genetica/NeuralNetNeumo/data/"
@@ -28,7 +37,7 @@ variables.to.remove <- c(8) ## Position of variables to remove from the analysis
 ## Name of files
 input.file <- "data_curated_sorted.moredata.txt"
 input.knn.matrix.file <- "input.knn.matrix.moredata.txt"
-roc.curve.file <- "rf_curvasroc.png"
+roc.curve.file <- "rf_curvasroc.all.png"
 
 setwd(data.dir)
 
