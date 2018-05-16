@@ -18,7 +18,7 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "no"
+resampling <- "yes"
 k <- 10 ## k-cross fold validation
 
 data.dir <- "/home/pablo/genetica/NeuralNetNeumo/data/"
@@ -32,10 +32,6 @@ roc.curve.file <- "rf_curvasroc.png"
 
 setwd(data.dir)
 
-## Transpose the file to count NAs
-nas.matrix <- read.table(nas.file, sep="\t", header=T)
-write.table(t(nas.matrix), file=nas.t.file,sep="\t", quote=F)
-
 ## First we input missing data using KNN
 input.matrix <- read.table(input.file, sep="\t", header=T, na.strings = "NULL", 
                                         stringsAsFactors = F, colClasses = "numeric")
@@ -43,10 +39,9 @@ input.matrix <- read.table(input.file, sep="\t", header=T, na.strings = "NULL",
 ## Sort according to MORTALITY (1s first) ## In case dinput.natrix is not sorted (1s in the first columns and 0s in the last ones)
 #input.matrix <- input.matrix[order(input.matrix$MORTALITY, decreasing = TRUE),]
 
-## Impute values on NAs using KNN
-
+## Impute values on NAs using KNN  and remove any variable in vector variables.to.remove
+## Should do a study of % of missing values per each paramenter)
 input.knn.matrix <- knnImputation(as.matrix(input.matrix), k=10)[,-variables.to.remove] 
-## Variable INR is removed (41% of NAs)
 
 ## Write matrices KNN
 write.table(input.knn.matrix, file=input.knn.matrix.file,sep="\t", quote=F)
@@ -61,8 +56,16 @@ specificity.global.vector <- rep(NA, k)
 
 ## This is to build the ROC curve after the 10 fold cross-validation
 ## 70 is the number of rows of cv.test * 10
-classes.global.vector <- rep(NA, 7*k)
-probabilities.global.vector <- rep(NA, 7*k)
+## an aproximation would be 
+## in the case resampling = no
+#matrix.frame.test <- read.table(matrix.file, sep="\t", header=T)
+#size.of.vector <- round(dim(matrix.frame.test)[1]*0.1)
+#size.of.vector <- 7
+
+#classes.global.vector <- rep(NA, size.of.vector*k)
+#probabilities.global.vector <- rep(NA, size.of.vector*k)
+classes.global.vector <- vector(mode="logical")
+probabilities.global.vector <- vector(mode="logical")
 
 importance.frame <- data.frame(Parameter=character(0),mda=numeric(0),mdg=numeric(0))
 
@@ -74,12 +77,12 @@ for(i in 1:k){
   
   matrix.frame <- read.table(matrix.file, sep="\t", header=T)
   
-  ## This is the case we want to introduce the same number of samples in both classes
+  ## To introduce the same number of samples in both classes
   if(resampling=="yes"){
     number.to.keep <- sum(matrix.frame$MORTALITY==1)
     rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
     matrix.frame <- matrix.frame[rows,]
-    rownames(matrix.frame) <- 1:dim(matrix.frame)[1]
+    rownames(matrix.frame) <- 1:dim(matrix.frame)[1]  
   }
   
   # Define train and test sets
@@ -89,7 +92,17 @@ for(i in 1:k){
   
   ## This in principle avoids that we have all classes in the cv.test data.frame
   while(length(unique(cv.test$MORTALITY)) != length(unique(matrix.frame$MORTALITY))){
+    
+    matrix.frame <- read.table(matrix.file, sep="\t", header=T)
     set.seed(i + seed.sum + lucky.number)
+    
+    if(resampling=="yes"){
+      number.to.keep <- sum(matrix.frame$MORTALITY==1)
+      rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
+      matrix.frame <- matrix.frame[rows,]
+      rownames(matrix.frame) <- 1:dim(matrix.frame)[1]
+    }
+    
     samp <- sample(nrow(matrix.frame), 0.9 * nrow(matrix.frame))
     cv.train <- matrix.frame[samp, ]
     cv.test <- matrix.frame[-samp, ]
@@ -166,6 +179,11 @@ for(i in 1:k){
   predictions <- as.data.frame(prediction.prob)
   predictions$predict <- names(predictions)[1:2][apply(predictions[,1:2], 1, which.max)]
   predictions$observed <- cv.test$MORTALITY
+  
+  if(i == k){
+      probabilities.global.vector <- probabilities.global.vector[!is.na(probabilities.global.vector)]
+      classes.global.vector <- classes.global.vector[!is.na(classes.global.vector)]
+  }
 }
 
 ## ROC curve with pROC package
