@@ -3,95 +3,49 @@ rm(list=ls())
 ## PCA with genes
 library(pca3d)
 
-ec <- c(1,5,9,13,17,21,25,29,33,37)
-tp <- c(3,7,11,15,19,23,27,31,35,39)
-hc <- c(2,6,10,14,18,22,26,30,34,38)
-tx <- c(4,8,12,16,20,24,28,32,36,40)
+data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/"
+#input.file <- "data_curated_sorted.moredata_age.txt"
+input.file <- "input.knn.matrix.moredata_age.txt"
 
-columns <- c(ec,hc,tx)
-data.dir <- "/home/pablo/genetica/VIH/data/expression_matrix/"
+variables.to.remove <- c(9) ## Position of variables to remove from the analysis
+setwd(data.dir)
 
-cels <- "TCD8"
-#tag <- "lessAnnotation."
-tag <- ""
+## First we input missing data using KNN
+#input.matrix <- read.table(input.file, sep="\t", header=T, na.strings = "NULL", 
+#                           stringsAsFactors = F, colClasses = "numeric")[,-variables.to.remove]
 
+input.matrix <- read.table(input.file, sep="\t", na.strings = "NULL", header=T)[,-variables.to.remove]
 
-#expression.matrix <- read.table(paste(data.dir, cels, ".normalized_dataset.PCA.txt", sep=""), 
-#                               sep="\t", quote="", header=TRUE, row.names=NULL)[,columns+1]
+deads <- 1:31
+alives <- 32:1966
 
-expression.matrix <- read.table(paste(data.dir, cels, ".hgnc.noChrY.", tag, "merged.PCA.txt", sep=""), 
-                                sep="\t", quote="", header=TRUE, row.names=1)[,columns]
+columns <- c(deads, alives)
 
-pca.matrix <- t(as.matrix(sapply(expression.matrix[,1:length(columns)], as.numeric)))
+#pca.matrix <- t(as.matrix(sapply(expression.matrix[,1:length(columns)], as.numeric)))
+pca.matrix <- as.matrix(sapply(input.matrix, as.numeric))
 
-# classes.names <- c(
-# "TRM_226726_EC","TRM_226726_HC","TRM_226726_TP","TRM_226726_TX",
-# "TRM_226727_EC","TRM_226727_HC","TRM_226727_TP","TRM_226727_TX",
-# "TRM_226728_EC","TRM_226728_HC","TRM_226728_TP","TRM_226728_TX",
-# "TRM_226729_EC","TRM_226729_HC","TRM_226729_TP","TRM_226729_TX",
-# "TRM_226730_EC","TRM_226730_HC","TRM_226730_TP","TRM_226730_TX",
-# "TRM_226731_EC","TRM_226731_HC","TRM_226731_TP","TRM_226731_TX",
-# "TRM_226732_EC","TRM_226732_HC","TRM_226732_TP","TRM_226732_TX",
-# "TRM_226733_EC","TRM_226733_HC","TRM_226733_TP","TRM_226733_TX",
-# "TRM_226734_EC","TRM_226734_HC","TRM_226734_TP","TRM_226734_TX",
-# "TRM_226735_EC","TRM_226735_HC","TRM_226735_TP","TRM_226735_TX")[columns]
-
-classes.names <- c(
-"TCD8_22303_EC","TCD8_22303_HC","TCD8_22303_TP","TCD8_22303_TX",
-"TCD8_22306_EC","TCD8_22306_HC","TCD8_22306_TP","TCD8_22306_TX",
-"TCD8_22307_EC","TCD8_22307_HC","TCD8_22307_TP","TCD8_22307_TX",
-"TCD8_22317_EC","TCD8_22317_HC","TCD8_22317_TP","TCD8_22317_TX",
-"TCD8_22345_EC","TCD8_22345_HC","TCD8_22345_TP","TCD8_22345_TX",
-"TCD8_26736_EC","TCD8_26736_HC","TCD8_26736_TP","TCD8_26736_TX",
-"TCD8_26737_EC","TCD8_26737_HC","TCD8_26737_TP","TCD8_26737_TX",
-"TCD8_26738_EC","TCD8_26738_HC","TCD8_26738_TP","TCD8_26738_TX",
-"TCD8_26739_EC","TCD8_26739_HC","TCD8_26739_TP","TCD8_26739_TX",
-"TCD8_26740_EC","TCD8_26740_HC","TCD8_26740_TP","TCD8_26740_TX")[columns]
+classes.names <- c(rep("dead", times=length(deads)), rep("alive",times=length(alives)))
+classes <- c(rep("dead", times=length(deads)), rep("alive",times=length(alives)))
+colors <- c(rep("red", times=length(deads)), rep("darkgreen",times=length(alives)))
 
 
-
-
-
-classes <- c("EC", "HC", "TP", "TX", 
-             "EC", "HC", "TP", "TX",
-             "EC", "HC", "TP", "TX",
-             "EC", "HC", "TP", "TX", 
-             "EC", "HC", "TP", "TX",
-             "EC", "HC", "TP", "TX", 
-             "EC", "HC", "TP", "TX", 
-             "EC", "HC", "TP", "TX",
-             "EC", "HC", "TP", "TX", 
-             "EC", "HC", "TP", "TX")[columns]
-
-rownames(pca.matrix) <- classes.names
-colnames(pca.matrix) <- rownames(expression.matrix)
-
-colors <- c("limegreen", "skyblue3", "indianred1", "red",
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red",
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red", 
-            "limegreen", "skyblue3", "indianred1", "red")[columns]
+#colnames(pca.matrix) <- rownames(pca.matrix)
 
 groups <- as.factor(classes)
 pca <- prcomp(pca.matrix, cor=TRUE, scores=TRUE)
 #pca <- prcomp(pca.matrix)
 
-pca3d(pca, components = c(1,2,3), col = colors, title = NULL, new = TRUE, radius=1,
+pca3d(pca, components = c(1,2,3), col = colors, title = NULL, new = TRUE, radius=0.3,
       axes.color = "black", bg = "white", group = groups, shape="sphere",
       show.shadows = FALSE,show.plane = F,
       show.ellipses = F, ellipse.ci = 0.5)
 
 
-pca2d(pca, components = c(1,2), col = colors, title = NULL, new = TRUE, radius=1.4,
+pca2d(pca, components = c(1,2), col = colors, title = NULL, new = TRUE, radius=0.7,
       axes.color = "black", bg = "white", group = groups, shape="sphere",
       show.shadows = FALSE,show.plane = FALSE, fancy=FALSE,
-      show.ellipses = T, ellipse.ci = 0.5)
-#dev.off()
+      show.ellipses = T, ellipse.ci = 0.9)
+dev.off()
 
 dist(rbind(feature.centroids[feature.centroids$Type == "barolo",]
            [-1],feature.centroids[feature.centroids$Type == "grignolino",]
