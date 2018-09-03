@@ -23,21 +23,22 @@ library(rfUtilities)
 library(pROC)
 library(HandTill2001)
 library(ggplot2)
+library(labeling)
 library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "yes" ## Say yes if the data is unbalanced
+resampling <- "no" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 
-data.dir <- "/home/pablo/genetica/NeuralNetNeumo/data/"
-results.dir <- "/home/pablo/genetica/NeuralNetNeumo/results/"
-variables.to.remove <- c() ## Position of variables to remove from the analysis
+data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/"
+results.dir <- "/home/pablo/genetica/NeumoRandomForest/results/"
+variables.to.remove <- c(9) ## Position of variables to remove from the analysis
 
 ## Name of files
-input.file <- "repucri16052018_filtro_sorted.txt"
-input.knn.matrix.file <- "input.knn.matrix.repucri16052018.txt"
-roc.curve.file <- "rf_curvasroc.repucri16052018.png"
+input.file <- "data_curated_sorted_moredata_age_v2.csv"
+input.knn.matrix.file <- "input.knn.matrix_moredata_age.txt"
+roc.curve.file <- "rf_curvasroc.png"
 
 setwd(data.dir)
 
@@ -90,9 +91,10 @@ for(i in 1:k){
   cv.train <- matrix.frame[samp, ]
   cv.test <- matrix.frame[-samp, ]
   
-  ## This in principle avoids that we have all classes in the cv.test data.frame
-  recalculate.sets <- any(c(any(is.na(cv.test)), any(is.na(cv.train)))==TRUE)
-  while(recalculate.sets == TRUE){
+  ## This in principle avoids that we do not have all classes in the cv.test data.frame
+  #recalculate.sets <- any(c(any(is.na(cv.test)), any(is.na(cv.train)))==TRUE)
+  recalculate.sets <- length(unique(cv.test$MORTALITY))
+  while(length(unique(cv.test$MORTALITY)) < length(unique(matrix.frame$MORTALITY))){
     
       matrix.frame <- read.table(matrix.file, sep="\t", header=T)
       set.seed(i + seed.sum + lucky.number)
@@ -109,10 +111,10 @@ for(i in 1:k){
       cv.test <- matrix.frame[-samp, ]
       lucky.number <- lucky.number + 1
     
-      recalculate.sets <- any(c(any(is.na(cv.test)), any(is.na(cv.train)))==TRUE)
-      if(length(unique(cv.test$MORTALITY)) != length(unique(matrix.frame$MORTALITY))){
-        recalculate.sets <- TRUE
-      }
+      recalculate.sets <- length(unique(cv.test$MORTALITY))
+      # if(length(unique(cv.test$MORTALITY)) != length(unique(matrix.frame$MORTALITY))){
+      #   recalculate.sets <- TRUE
+      # }
   }
   
   ## Convert response variable to factor (MORTALITY) to avoid RF does regression
