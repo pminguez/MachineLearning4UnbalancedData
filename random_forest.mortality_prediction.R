@@ -28,8 +28,9 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "no" ## Say yes if the data is unbalanced
+resampling <- "yes" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
+times.the.size <- 1 #number of times that should multiply the cases with mortality to make the train/test datasets
 
 data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/"
 results.dir <- "/home/pablo/genetica/NeumoRandomForest/results/"
@@ -51,7 +52,7 @@ input.matrix <- read.table(input.file, sep="\t", header=T, na.strings = "NULL",
 
 ## Impute values on NAs using KNN  and remove any variable in vector variables.to.remove
 ## Should do a study of % of missing values per each paramenter)
-input.knn.matrix <- knnImputation(as.matrix(input.matrix), k=3)
+input.knn.matrix <- knnImputation(as.matrix(input.matrix), k=6)
 
 ## Write matrices KNN
 write.table(input.knn.matrix, file=input.knn.matrix.file,sep="\t", quote=F)
@@ -76,11 +77,11 @@ lucky.number <- 100
 for(i in 1:k){
   set.seed(i + seed.sum)
   
-  matrix.frame <- read.table(matrix.file, sep="\t", header=T)
+  matrix.frame <- read.table(matrix.file, sep="\t", header=T)[,- c(1,2,3,4,8,9,10,13,14,15,16)]
   
   ## To introduce the same number of samples in both classes
   if(resampling=="yes"){
-    number.to.keep <- sum(matrix.frame$MORTALITY==1)
+    number.to.keep <- sum(matrix.frame$MORTALITY==1)*times.the.size
     rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
     matrix.frame <- matrix.frame[rows,]
     rownames(matrix.frame) <- 1:dim(matrix.frame)[1]  
@@ -94,13 +95,18 @@ for(i in 1:k){
   ## This in principle avoids that we do not have all classes in the cv.test data.frame
   #recalculate.sets <- any(c(any(is.na(cv.test)), any(is.na(cv.train)))==TRUE)
   recalculate.sets <- length(unique(cv.test$MORTALITY))
-  while(length(unique(cv.test$MORTALITY)) < length(unique(matrix.frame$MORTALITY))){
+  
+  if(any(c(any(is.na(cv.test)),any(is.na(cv.train))))==TRUE){
+    recalculate.sets <- 1
+  }
+  
+  while(recalculate.sets == 1){
     
       matrix.frame <- read.table(matrix.file, sep="\t", header=T)
       set.seed(i + seed.sum + lucky.number)
     
       if(resampling=="yes"){
-        number.to.keep <- sum(matrix.frame$MORTALITY==1)
+        number.to.keep <- sum(matrix.frame$MORTALITY==1)*times.the.size
         rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
         matrix.frame <- matrix.frame[rows,]
         rownames(matrix.frame) <- 1:dim(matrix.frame)[1]
@@ -112,9 +118,10 @@ for(i in 1:k){
       lucky.number <- lucky.number + 1
     
       recalculate.sets <- length(unique(cv.test$MORTALITY))
-      # if(length(unique(cv.test$MORTALITY)) != length(unique(matrix.frame$MORTALITY))){
-      #   recalculate.sets <- TRUE
-      # }
+ 
+      if(any(c(any(is.na(cv.test)),any(is.na(cv.train))))==TRUE){
+        recalculate.sets <- 1
+      }
   }
   
   ## Convert response variable to factor (MORTALITY) to avoid RF does regression
@@ -201,7 +208,7 @@ png(paste(results.dir, roc.curve.file, sep=""), height=7, width=7, units="in", r
 result.roc <- roc(factor(classes.global.vector), probabilities.global.vector) 
 
 ## Plot both
-plot.roc(result.roc, col="red")
+plot.roc(result.roc, col="grey")
 dev.off()
 
 #### Data for two classes ####
@@ -221,7 +228,8 @@ levels.reordered <- rev(attributes(importance.reorder)$levels)
 
 importance.frame$Parameter <- factor(importance.frame$Parameter, levels = levels.reordered)
 
-p<-ggplot(importance.frame, aes(x=reorder(Parameter, mda, FUN=mean), y=mda, color=Parameter)) +
+#p<-ggplot(importance.frame, aes(x=reorder(Parameter, mda, FUN=mean), y=mda, color=Parameter)) +
+p<-ggplot(importance.frame, aes(x=reorder(Parameter, mda, FUN=mean), y=mda)) +
   geom_boxplot() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   scale_y_continuous("Mean Decrease Accuracy", limits=c(min(importance.frame$mda), 
                                                         max(importance.frame$mda))) +
@@ -235,7 +243,8 @@ levels.reordered <- rev(attributes(importance.reorder)$levels)
 importance.frame$Parameter <- factor(importance.frame$Parameter, levels = levels.reordered)
 
 
-p<-ggplot(importance.frame, aes(x=reorder(Parameter, mdg, FUN=mean), y=mdg, color=Parameter)) +
+#p<-ggplot(importance.frame, aes(x=reorder(Parameter, mdg, FUN=mean), y=mdg, color=Parameter)) +
+p<-ggplot(importance.frame, aes(x=reorder(Parameter, mdg, FUN=mean), y=mdg)) +
   geom_boxplot() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
   scale_y_continuous("Mean Decrease Gini", limits=c(min(importance.frame$mdg), 
                                                     max(importance.frame$mdg))) +
