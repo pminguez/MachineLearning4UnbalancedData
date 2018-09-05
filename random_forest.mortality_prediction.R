@@ -28,7 +28,7 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "yes" ## Say yes if the data is unbalanced
+resampling <- "no" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 times.the.size <- 1 #number of times that should multiply the cases with mortality to make the train/test datasets
 
@@ -77,7 +77,7 @@ lucky.number <- 100
 for(i in 1:k){
   set.seed(i + seed.sum)
   
-  matrix.frame <- read.table(matrix.file, sep="\t", header=T)[,- c(1,2,3,4,8,9,10,13,14,15,16)]
+  matrix.frame <- read.table(matrix.file, sep="\t", header=T)
   
   ## To introduce the same number of samples in both classes
   if(resampling=="yes"){
