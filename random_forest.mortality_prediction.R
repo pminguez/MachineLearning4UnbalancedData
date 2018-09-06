@@ -28,13 +28,14 @@ library(irlba)
 library(DMwR)
 
 ## PARAMETERS TO CUSTOMIZE
-resampling <- "no" ## Say yes if the data is unbalanced
+resampling <- "yes" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 times.the.size <- 1 #number of times that should multiply the cases with mortality to make the train/test datasets
 
 data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/"
 results.dir <- "/home/pablo/genetica/NeumoRandomForest/results/"
 variables.to.remove <- c(9) ## Position of variables to remove from the analysis
+write.intermediary.matrices <- "yes"
 
 ## Name of files
 input.file <- "data_curated_sorted_moredata_age_v2.csv"
@@ -85,6 +86,12 @@ for(i in 1:k){
     rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(sum(matrix.frame$MORTALITY==1)+1:dim(matrix.frame)[1], number.to.keep, replace=F))
     matrix.frame <- matrix.frame[rows,]
     rownames(matrix.frame) <- 1:dim(matrix.frame)[1]  
+  }
+  
+  # write intermediary matrices
+  if(write.intermediary.matrices == "yes"){
+    intermediary.file <- paste(data.dir, input.knn.matrix.file, ".", i, sep="")
+    write.table(matrix.frame, file=intermediary.file,sep="\t", quote=F)
   }
   
   # Define train and test sets
