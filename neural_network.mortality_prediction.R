@@ -1,5 +1,5 @@
 #######################################################################################
-## Pablo Minguez 10/09/2018                                                          ##
+## Pablo Minguez 24/09/2018                                                          ##
 ## Bioinformatics Unit - Department of Genetics & Genomics                           ##
 ## IIS-Fundacion Jimenez Diaz                                                        ##
 ## Code to perform neural network to data with unbalanced classes                    ##
@@ -10,23 +10,20 @@
 rm(list=ls())
 
 library(DMwR)
-library(neuralnet)
-library(nnet)
-library(boot)
 library(GGally)
 library(ggplot2)
-library(plyr)
-library(readr)
 library(pROC)
+library(caret)
 
 ## PARAMETERS TO CUSTOMIZE
 resampling <- "yes" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 times.the.size <- 1 #number of times that should multiply the cases with mortality to make the train/test datasets
 subsampling.times <- 10
-seed.sum <- 100
+seed.sum <- 1
 lucky.number <- 101
-hidden.layers <- c(2)
+percentage.test <- 0.9
+black.and.white <- "yes"
 
 data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/neural_network/"
 setwd(data.dir)
@@ -63,33 +60,36 @@ auc.vect <- rep(NA,k*subsampling.times) ## store the error in this vector (AUC)
 accuracy.vect <- rep(NA, k*subsampling.times) ## store the accuracy in this vector
 sensitivity.vector <- rep(NA, k*subsampling.times)
 specificity.vector <- rep(NA, k*subsampling.times)
-MSE.nn.vect <- rep(NA, k*subsampling.times)
-RMSE.nn.vect <- rep(NA, k*subsampling.times)
 
-## This is to build the ROC curve after the 10 fold cross-validation
-classes.global.vector <- vector(mode="logical")
-predictions.global.vector <- vector(mode="logical")
+## Importance
+importance.frame <- data.frame(Parameter=character(0),value=numeric(0))
 
 count <- 0
+
+## Draw the first part of the roc curve
+if(black.and.white == "yes"){
+  my.colors <- rep("grey", 10)
+}else{
+  my.colors <- c("red", "deepskyblue", "yellow", "green4", "hotpink", "orange", "blueviolet", "navy", "sienna", "darksalmon")
+}
 
 # We repeat the analysis if we go for subsampling
 for (j in 1:subsampling.times){
   
   matrix.frame <- read.table(matrix.file, sep="\t", header=T)
   
-  ## Make formula to feed the neural network
-  all.vars <- colnames(matrix.frame)
-  predictor.vars <- all.vars[!all.vars%in%"MORTALITY"]
-  form <- as.formula(paste("MORTALITY ~", paste(all.vars[!all.vars %in% "MORTALITY"], collapse = "+")))
-  
   first.value <- sum(matrix.frame$MORTALITY==1)+1
   last.value <- dim(matrix.frame)[1]
   rows <- c(1:sum(matrix.frame$MORTALITY==1), sample(first.value:last.value, number.to.keep, replace=F))
   matrix.frame <- matrix.frame[rows,]
   
+  ## We record vectors to draw a ROC curve per each resampling
+  classes.local.vector <- vector(mode="logical")
+  predictions.local.vector <- vector(mode="logical")
+  
   ## 10-fold cross validation loop
   for(i in 1:k){
-    set.seed(i + seed.sum)
+    set.seed(i + seed.sum + (j*100))
     count <- count + 1
     
     ## Normalize the matrix using min-max scale method
@@ -97,42 +97,51 @@ for (j in 1:subsampling.times){
     mins <- apply(matrix.frame, 2, min)
     
     scaled.data <- as.data.frame(scale(matrix.frame, center = mins, scale = maxs - mins))
-    index <- sample(1:nrow(scaled.data),round(0.7*nrow(scaled.data)))
+    index <- sample(1:nrow(scaled.data),round(percentage.test*nrow(scaled.data)))
     
     ## creating training and test sets
     train.nn = scaled.data[index, ]
     test.nn = scaled.data[-index, ]
     test <- matrix.frame[-index, ]
     
-    ## linear.output variable is set to FALSE,
-    ## given the impact of the independent variables on the dependent variable (dividend) is assumed to be non-linear
-    # nn = neuralnet(formula=form, train.nn, hidden = hidden.layers, linear.output = F, threshold=0.01)
-    nn = neuralnet(formula=form, train.nn, hidden = hidden.layers, linear.output = T)
-    predict_test.nn <- compute(nn, test.nn[,1:dim(test.nn)[2] - 1]) # we remove MORTALITY column for the prediction
-    predict_test.nn <- (predict_test.nn$net.result * (max(matrix.frame$MORTALITY) - 
-                                                        min(matrix.frame$MORTALITY))) + min(matrix.frame$MORTALITY)
-    test.r <- (test.nn$MORTALITY)*(max(matrix.frame$MORTALITY)-min(matrix.frame$MORTALITY))+min(matrix.frame$MORTALITY)
+    ## To avoid 
+    while(length(unique(test.nn$MORTALITY)) == 1){
+      set.seed(i + seed.sum + (j*100) + lucky.number)
+      index <- sample(1:nrow(scaled.data),round(0.9*nrow(scaled.data)))
+      
+      ## creating training and test sets
+      train.nn = scaled.data[index, ]
+      test.nn = scaled.data[-index, ]
+      test <- matrix.frame[-index, ]
+      
+      lucky.number <- lucky.number + 1
+    }
     
-    MSE.nn <- sum((test.r - predict_test.nn)^2)/nrow(test.nn)
-    MSE.nn.vect[count] <- MSE.nn
+    ## Convert response variable to factor (MORTALITY) to avoid NN does regression
+    train.nn$MORTALITY <- as.character(train.nn$MORTALITY)
+    train.nn$MORTALITY <- as.factor(train.nn$MORTALITY)
+    test.nn$MORTALITY <- as.character(test.nn$MORTALITY)
+    test.nn$MORTALITY <- as.factor(test.nn$MORTALITY)
     
-    RMSE.nn = (sum((test$MORTALITY - predict_test.nn)^2) / nrow(test)) ^ 0.5
-    RMSE.nn.vect[count] <- RMSE.nn
+    ## Get the model and prediciton
+    crtl <- trainControl(method="none",classProbs = T, summaryFunction=twoClassSummary)
+    my.grid <- expand.grid(.decay = seq(from = 0.1, to = 0.5, by = 0.1), .size = c(1,2,3,4,5))
+    nn.caret <- train(MORTALITY~., data=train.nn, method="nnet", trainControl=crtl, tuneGrid=my.grid)
     
-    results <- data.frame(actual = test.nn$MORTALITY, prediction = predict_test.nn)
-    roundedresults<-sapply(results,round,digits=0)
-    roundedresultsdf=data.frame(roundedresults)
-    attach(roundedresultsdf)
-    t <- table(actual,prediction)
+    #plotnet(nn.caret)
+    predict_test.nn.prob <- predict(nn.caret, test.nn, type = "prob")
+    predict_test.nn.class <- predict(nn.caret, test.nn)
     
-    ## plot(test.nn$MORTALITY, predict_test.nn,col='red',main='Real vs predicted NN',pch=18,cex=0.7)
-    ## abline(0,1,lwd=2)
+    t <- table(predictions=predict_test.nn.class, real=test.nn$MORTALITY) ## predictions vs real
+    t
     
+    results <- data.frame(actual = test.nn$MORTALITY, prediction = predict_test.nn.prob$"0")
+
     ## Accuracy
     accuracy.vect[count] <- sum(diag(t))/sum(t) ## percentage accuracy
 
     ## ROC element
-    my.roc <- roc(actual, results$prediction, ci=T)
+    my.roc <- roc(predictor=predict_test.nn.prob$"0", response=results$actual)
     ## AUC calculated using all classes, other methods only allow two classes
     auc.vect[count] <- my.roc$auc[1]
     
@@ -140,44 +149,44 @@ for (j in 1:subsampling.times){
     specificity.vector[count] <- mean(mean(my.roc$specificities))
     sensitivity.vector[count] <- mean(mean(my.roc$sensitivities))
     
-    # feed the vectors for ROC curve
-    classes.global.vector <- c(classes.global.vector, actual)
-    predictions.global.vector <- c(predictions.global.vector, results$prediction)
+    classes.local.vector <- c(classes.local.vector, as.numeric(levels(results$actual))[results$actual])
+    predictions.local.vector <- c(predictions.local.vector, results$prediction)
+    
+    ## Importance .. creo que estará bien ...
+    for(h in 1:length(colnames(matrix.frame)[1:length(colnames(matrix.frame))-1])){
+      measurement <- colnames(matrix.frame)[h]
+      importance.frame <- rbind(importance.frame, data.frame(Parameter=measurement, 
+                                                             value=as.vector(varImp(nn.caret)$importance[h,1])))
+    }
   }
-}
   
-result.roc <- roc(factor(classes.global.vector), predictions.global.vector, ci=T)
-plot.roc(result.roc, col="grey")
+  ## Generate the ROC for a re-sampled matrix
+  intermediate.roc <- roc(factor(classes.local.vector), predictions.local.vector, ci=T)
+  
+  if(j==1){
+    plot.roc(intermediate.roc, col=my.colors[j], add=F)
+  }else{plot.roc(intermediate.roc, col=my.colors[j], add=T)}
+}
 
 ## Now deal with other paramenters (as before adding the ROC curve)
 print(paste("Average AUC:", mean(auc.vect)))
 print(paste("Average Accuracy:", mean(accuracy.vect)))
 print(paste("Average Sensitivity:", mean(sensitivity.vector)))
 print(paste("Average Specificity:", mean(specificity.vector)))
-print(paste("Average MSE:", mean(MSE.nn.vect)))
-print(paste("Average RMSE:", mean(RMSE.nn.vect)))
 
+## Plot Importance parameters
+levels(importance.frame$Parameter)
 
-#import 'gar.fun' from Github
-require(devtools)
-source_url('https://gist.githubusercontent.com/fawda123/6206737/raw/d6f365c283a8cae23fb20892dc223bc5764d50c7/gar_fun.r')
+## This reorders the legend
+importance.reorder <- reorder(importance.frame$Parameter, importance.frame$value, FUN=mean)
+levels.reordered <- rev(attributes(importance.reorder)$levels)
 
-predictor.vars <- all.vars[!all.vars%in%"MORTALITY"]
-cols<-colorRampPalette(c('lightgreen','lightblue'))(length(predictor.vars))
-gar.fun(predictor.vars, nn)
+importance.frame$Parameter <- factor(importance.frame$Parameter, levels = levels.reordered)
 
-par(mar=c(3,4,1,1),family='serif')
-gar.fun(predictor.vars,nn)
-
-
-
-
-
-
-
-
-
-
-
-
-
+## And print the parameters
+p<-ggplot(importance.frame, aes(x=reorder(Parameter, value, FUN=mean), y=value)) +
+  geom_boxplot() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+  scale_y_continuous("Importance", limits=c(min(importance.frame$value), 
+                                                        max(importance.frame$value))) +
+  scale_x_discrete("Parameters")
+p

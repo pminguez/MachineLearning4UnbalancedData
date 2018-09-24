@@ -137,7 +137,6 @@ for(i in 1:k){
   cv.test$MORTALITY <- as.character(cv.test$MORTALITY)
   cv.test$MORTALITY <- as.factor(cv.test$MORTALITY)
   
-  
   ## Find best mtry number
   bestmtry <- tuneRF(cv.train, cv.train$MORTALITY, ntreeTry = 1000, 
                      stepFactor = 1.2, improve= 0.01,
