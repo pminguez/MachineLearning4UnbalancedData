@@ -25,9 +25,9 @@ lucky.number <- 101
 percentage.test <- 0.9
 black.and.white <- "yes"
 
-data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/neural_network/"
+data.dir <- "/home/pablo/genetica/NeumoMachineLearning/data/neural_network/"
 setwd(data.dir)
-results.dir <- "/home/pablo/genetica/NeumoRandomForest/results/"
+results.dir <- "/home/pablo/genetica/NeumoMachineLearning/results/"
 variables.to.remove <- c(9) ## Position of variables to remove from the analysis
 
 ## Name of files
