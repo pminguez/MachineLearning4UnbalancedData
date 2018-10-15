@@ -32,8 +32,8 @@ resampling <- "yes" ## Say yes if the data is unbalanced
 k <- 10 ## k-cross fold validation
 times.the.size <- 1 #number of times that should multiply the cases with mortality to make the train/test datasets
 
-data.dir <- "/home/pablo/genetica/NeumoRandomForest/data/"
-results.dir <- "/home/pablo/genetica/NeumoRandomForest/results/"
+data.dir <- "/home/pablo/genetica/NeumoMachineLearning/data/"
+results.dir <- "/home/pablo/genetica/NeumoMachineLearning/results/"
 variables.to.remove <- c(9) ## Position of variables to remove from the analysis
 write.intermediary.matrices <- "yes"
 
